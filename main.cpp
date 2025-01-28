@@ -1,4 +1,7 @@
 #include <iostream>
+#include <vector>
+#include <algorithm>
+#include <iomanip>
 #include <time.h>
 using namespace std;
 
@@ -44,7 +47,87 @@ public:
     int getBurst(int i){return burst[i];}
     int getArrival(int i){return arrival[i];}
     int getPriority(int i){return priority[i];}
+    int getPC(){return PC;}
 };
+
+void nonPreemptivePriorityScheduling(Table& table) {
+    int n = table.getPC();
+    vector<int> burstTime(n), arrivalTime(n), priority(n), waitingTime(n), turnaroundTime(n), completionTime(n);
+    vector<bool> completed(n, false);
+
+    for (int i = 0; i < n; i++) {
+        burstTime[i] = table.getBurst(i);
+        arrivalTime[i] = table.getArrival(i);
+        priority[i] = table.getPriority(i);
+    }
+
+    int currentTime = 0;
+    int totalCompleted = 0;
+    vector<pair<int, int>> ganttChart;
+
+    while (totalCompleted < n) {
+        int highestPriority = INT_MAX;
+        int selectedProcess = -1;
+
+        for (int i = 0; i < n; i++) {
+            if (!completed[i] && arrivalTime[i] <= currentTime && priority[i] < highestPriority) {
+                highestPriority = priority[i];
+                selectedProcess = i;
+            } else if (!completed[i] && arrivalTime[i] <= currentTime && priority[i] == highestPriority) {
+                if (arrivalTime[i] < arrivalTime[selectedProcess]) {
+                    selectedProcess = i;
+                }
+            }
+        }
+
+        if (selectedProcess == -1) {
+            currentTime++;
+            continue;
+        }
+
+        ganttChart.push_back({selectedProcess, currentTime});
+        currentTime += burstTime[selectedProcess];
+        completionTime[selectedProcess] = currentTime;
+        turnaroundTime[selectedProcess] = completionTime[selectedProcess] - arrivalTime[selectedProcess];
+        waitingTime[selectedProcess] = turnaroundTime[selectedProcess] - burstTime[selectedProcess];
+        completed[selectedProcess] = true;
+        totalCompleted++;
+    }
+
+    // Display Gantt Chart
+    cout << "\nGantt Chart:\n";
+    for (auto& p : ganttChart) {
+        cout << "+-------";
+    }
+    cout << "+\n";
+    for (auto& p : ganttChart) {
+        cout << "|  P" << p.first << "  ";
+    }
+    cout << "|\n";
+    for (auto& p : ganttChart) {
+        cout << "+-------";
+    }
+    cout << "+\n";
+    cout << ganttChart[0].second;
+    for (size_t i = 0; i < ganttChart.size(); i++) {
+        cout << "      " << ganttChart[i].second + burstTime[ganttChart[i].first];
+    }
+    cout << "\n";
+
+    // Calculate and display turnaround time and waiting time
+    int totalTurnaroundTime = 0, totalWaitingTime = 0;
+    cout << "\nProcess\tTurnaround Time\tWaiting Time\n";
+    for (int i = 0; i < n; i++) {
+        totalTurnaroundTime += turnaroundTime[i];
+        totalWaitingTime += waitingTime[i];
+        cout << "P" << i << "\t" << turnaroundTime[i] << "\t\t" << waitingTime[i] << "\n";
+    }
+
+    cout << "\nTotal Turnaround Time: " << totalTurnaroundTime << "\n";
+    cout << "Average Turnaround Time: " << (float)totalTurnaroundTime / n << "\n";
+    cout << "Total Waiting Time: " << totalWaitingTime << "\n";
+    cout << "Average Waiting Time: " << (float)totalWaitingTime / n << "\n";
+}
 
 int main(){
     int burst[10];
@@ -79,8 +162,10 @@ int main(){
         priority[i] = prio;
     }
 
-    Table table(PC, burst, arrival, priority);
-    Table tableAuto(10);
-    table.printTable();
+    // Table table(PC, burst, arrival, priority);
+    Table tableAuto(5);
+    // table.printTable();
     tableAuto.printTable();
+
+    nonPreemptivePriorityScheduling(tableAuto);
 }
