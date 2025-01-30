@@ -1,79 +1,112 @@
-#include <iostream>
-#include <vector>
-#include <algorithm>
-#include <iomanip>
-#include <time.h>
-using namespace std;
+#include "Scheduler.h"
 
-class Table{
-private:
-    int PC;
-    int burst[10];
-    int arrival[10];
-    int priority[10];
-public:
-    Table(int PC, int burst[], int arrival[], int priority[]){
-        srand( (unsigned)time(NULL));
-        this->PC = PC;
-        for(int i = 0; i < PC; i++){
-            this->burst[i] = burst[i];
-            this->arrival[i] = arrival[i];
-            this->priority[i] = priority[i];
-        }
-    }
-
-    Table(int PC){
-        this->PC = PC;
-        for(int i = 0; i < PC; i++){
-            this->burst[i] = rand() % PC;
-            this->arrival[i] = rand() % PC;
-            this->priority[i] = rand() % PC;
-        }
-    }
-
-    void printTable(){
-        cout << "+-----------+-------------+--------------+-----------+" << endl;
-        cout << "| Process   | Burst Time  | Arrival Time | Priority  |" << endl;
-        for(int i = 0; i < PC; i++){
-            cout << "+-----------+-------------+--------------+-----------+" << endl;
-            cout << "| P" << i << "        |      "; 
-            cout << burst[i] << "      |       "; 
-            cout << arrival[i] << "      |     ";
-            cout << priority[i] << "     |" << endl;
-        }
-       cout << "+-----------+-------------+--------------+-----------+" << endl;
-    }
-
-    int getBurst(int i){return burst[i];}
-    int getArrival(int i){return arrival[i];}
-    int getPriority(int i){return priority[i];}
-    int getPC(){return PC;}
-};
-
-void nonPreemptivePriorityScheduling(Table& table) {
-    int n = table.getPC();
-    vector<int> burstTime(n), arrivalTime(n), priority(n), waitingTime(n), turnaroundTime(n), completionTime(n);
-    vector<bool> completed(n, false);
-
-    for (int i = 0; i < n; i++) {
-        burstTime[i] = table.getBurst(i);
-        arrivalTime[i] = table.getArrival(i);
-        priority[i] = table.getPriority(i);
-    }
-
+void Scheduler::preemptivePriorityScheduling(){
     int currentTime = 0;
-    int totalCompleted = 0;
-    vector<pair<int, int>> ganttChart;
+        int totalCompleted = 0;
 
-    while (totalCompleted < n) {
-        int highestPriority = INT_MAX;
-        int selectedProcess = -1;
+        while (totalCompleted < n) {
+            int highestPriority = INT_MAX;
+            int selectedProcess = -1;
 
+        // Select the process with the highest priority that has arrived
         for (int i = 0; i < n; i++) {
             if (!completed[i] && arrivalTime[i] <= currentTime && priority[i] < highestPriority) {
                 highestPriority = priority[i];
                 selectedProcess = i;
             } else if (!completed[i] && arrivalTime[i] <= currentTime && priority[i] == highestPriority) {
+                if (arrivalTime[i] < arrivalTime[selectedProcess]) {
+                    selectedProcess = i;
+                }
+            }
+        }
+
+        if (selectedProcess == -1) {
+            currentTime++;
+            continue;
+        }
+        // Record the start of the process in the Gantt chart
+        if (ganttChart.empty() || ganttChart.back().first != selectedProcess) {
+            ganttChart.push_back(make_pair(selectedProcess, currentTime)); // Use make_pair
+        }
+
+        // Execute the process for one unit of time
+        remainingTime[selectedProcess]--;
+        currentTime++;
+
+        // If the process is completed
+        if (remainingTime[selectedProcess] == 0) {
+            completed[selectedProcess] = true;
+            totalCompleted++;
+            completionTime[selectedProcess] = currentTime;
+            turnaroundTime[selectedProcess] = completionTime[selectedProcess] - arrivalTime[selectedProcess];
+            waitingTime[selectedProcess] = turnaroundTime[selectedProcess] - burstTime[selectedProcess];
+        }
+    }
+
+    // Merge adjacent entries in the Gantt chart for the same process
+    vector<pair<int, int> > mergedGantt; // Add space between >>
+    for (size_t i = 0; i < ganttChart.size(); i++) {
+        if (mergedGantt.empty() || ganttChart[i].first != mergedGantt.back().first) {
+            mergedGantt.push_back(ganttChart[i]);
+        } else {
+            mergedGantt.back().second = currentTime; // Extend the duration of the process
+        }
+    }
+    ganttChart = mergedGantt;
+
+    displayGanttChart();
+}
+
+void Scheduler::shortestJobNext(){
+    int currentTime = 0;
+    int totalCompleted = 0;
+
+    while(totalCompleted < n){
+        int shortestJob = INT_MAX;
+        int selectedProcess = -1;
+
+        for(int i = 0; i < n; i++){
+            if(!completed[i] && arrivalTime[i] <= currentTime && burstTime[i] < shortestJob){
+                shortestJob = burstTime[i];
+                selectedProcess = i;
+            }
+            else if(!completed[i] && arrivalTime[i] <= currentTime && burstTime[i] == shortestJob){
+                if(arrivalTime[i] < arrivalTime[selectedProcess]){
+                    selectedProcess = i;
+                }
+            }
+        }
+
+        if (selectedProcess == -1) {
+            currentTime++;
+            continue;
+        }
+
+        ganttChart.push_back({selectedProcess, currentTime});
+        currentTime += burstTime[selectedProcess];
+        completionTime[selectedProcess] = currentTime;
+        turnaroundTime[selectedProcess] = completionTime[selectedProcess] - arrivalTime[selectedProcess];
+        waitingTime[selectedProcess] = turnaroundTime[selectedProcess] - burstTime[selectedProcess];
+        completed[selectedProcess] = true;
+        totalCompleted++;
+    }
+
+    displayGanttChart();
+}
+
+void Scheduler::nonPreemptivePriorityScheduling() {
+    int currentTime = 0;
+    int totalCompleted = 0;
+
+    while (totalCompleted < n) {
+        int highestPriority = INT_MAX;
+        int selectedProcess = -1; 
+
+        for (int i = 0; i < n; i++) {
+            if (!completed[i] && arrivalTime[i] <= currentTime && priority[i] < highestPriority) {
+                highestPriority = priority[i];
+                selectedProcess = i;
+            }else if (!completed[i] && arrivalTime[i] <= currentTime && priority[i] == highestPriority) {
                 if (arrivalTime[i] < arrivalTime[selectedProcess]) {
                     selectedProcess = i;
                 }
@@ -94,42 +127,10 @@ void nonPreemptivePriorityScheduling(Table& table) {
         totalCompleted++;
     }
 
-    // Display Gantt Chart
-    cout << "\nGantt Chart:\n";
-    for (auto& p : ganttChart) {
-        cout << "+-------";
-    }
-    cout << "+\n";
-    for (auto& p : ganttChart) {
-        cout << "|  P" << p.first << "  ";
-    }
-    cout << "|\n";
-    for (auto& p : ganttChart) {
-        cout << "+-------";
-    }
-    cout << "+\n";
-    cout << ganttChart[0].second;
-    for (size_t i = 0; i < ganttChart.size(); i++) {
-        cout << "      " << ganttChart[i].second + burstTime[ganttChart[i].first];
-    }
-    cout << "\n";
-
-    // Calculate and display turnaround time and waiting time
-    int totalTurnaroundTime = 0, totalWaitingTime = 0;
-    cout << "\nProcess\tTurnaround Time\tWaiting Time\n";
-    for (int i = 0; i < n; i++) {
-        totalTurnaroundTime += turnaroundTime[i];
-        totalWaitingTime += waitingTime[i];
-        cout << "P" << i << "\t" << turnaroundTime[i] << "\t\t" << waitingTime[i] << "\n";
-    }
-
-    cout << "\nTotal Turnaround Time: " << totalTurnaroundTime << "\n";
-    cout << "Average Turnaround Time: " << (float)totalTurnaroundTime / n << "\n";
-    cout << "Total Waiting Time: " << totalWaitingTime << "\n";
-    cout << "Average Waiting Time: " << (float)totalWaitingTime / n << "\n";
+    displayGanttChart();
 }
 
-int main(){
+int main() {
     int burst[10];
     int arrival[10];
     int priority[10];
@@ -167,5 +168,45 @@ int main(){
     // table.printTable();
     tableAuto.printTable();
 
-    nonPreemptivePriorityScheduling(tableAuto);
+    while(true){
+        int choice;
+        while(true){
+            cout << "Choose scheduling algorithm:" << endl;
+            cout << "(1) Shortest Job Next\n(2) Preemptive Priority\n(3) Non-Preemptive Priority\n(4) Round Robin" << endl;
+            cin >> choice;
+
+            if(choice > 0 && choice < 5){break;}
+            else{cout << "Invalid input" << endl;}
+        }
+
+        if(choice == 1){
+            Scheduler scheduler(tableAuto);
+            scheduler.shortestJobNext();
+        }
+
+        if(choice == 2){
+            Scheduler scheduler(tableAuto);
+            scheduler.preemptivePriorityScheduling();
+        }
+        
+        if(choice == 3){
+            Scheduler scheduler(tableAuto);
+            scheduler.nonPreemptivePriorityScheduling();
+        }
+
+        if(choice == 4){
+            Scheduler scheduler(tableAuto);
+            scheduler.shortestJobNext();
+        }
+
+        while(true){
+            char end;
+            cout << "End program? (y/n)" << endl;
+            cin >> end;
+
+            if(toupper(end) == 'N'){break;}
+            if(toupper(end) == 'Y'){exit(1);}
+            else{cout << "Invalid input" << endl;}
+        }
+    }
 }
