@@ -1,12 +1,68 @@
 #include "Scheduler.h"
+#include <queue>
+
+void Scheduler::roundRobinScheduling(int quantum) {
+    int currentTime = 0;
+    queue<int> q;
+    vector<bool> is_queued(n, false);
+
+    // Initialize with processes that arrive at time 0
+    int minArrival = INT_MAX;
+    if (q.empty()) {
+        for (int i = 0; i < n; i++) {
+            minArrival = min(minArrival, arrivalTime[i]);
+        }
+        currentTime = minArrival;
+        for (int i = 0; i < n; i++) {
+            if (arrivalTime[i] == currentTime) {
+                q.push(i);
+                is_queued[i] = true;
+            }
+        }
+    }
+
+    // Process the queue using round robin
+    while (!q.empty()) {
+        int proc = q.front();
+        q.pop();
+
+        // Process the current process for quantum time or remaining time
+        if (burstTime[proc] > quantum) {
+            ganttChart.push_back(make_pair(proc, currentTime)); // Add to Gantt Chart
+            currentTime += quantum;
+            burstTime[proc] -= quantum;
+        } else {
+            ganttChart.push_back(make_pair(proc, currentTime)); // Add to Gantt Chart
+            currentTime += burstTime[proc];
+            waitingTime[proc] = currentTime - burstTime[proc] - arrivalTime[proc];
+            turnaroundTime[proc] = currentTime - arrivalTime[proc];
+            burstTime[proc] = 0;
+        }
+
+        // Enqueue all processes that have arrived and are not already queued
+        for (int i = 0; i < n; i++) {
+            if (arrivalTime[i] <= currentTime && !is_queued[i] && burstTime[i] > 0) {
+                q.push(i);
+                is_queued[i] = true;
+            }
+        }
+
+        // Re-enqueue the current process if it's not finished
+        if (burstTime[proc] > 0) {
+            q.push(proc);
+        }
+    }
+
+    displayGanttChart();
+}
 
 void Scheduler::preemptivePriorityScheduling(){
     int currentTime = 0;
-        int totalCompleted = 0;
+    int totalCompleted = 0;
 
-        while (totalCompleted < n) {
-            int highestPriority = INT_MAX;
-            int selectedProcess = -1;
+    while (totalCompleted < n) {
+        int highestPriority = INT_MAX;
+        int selectedProcess = -1;
 
         // Select the process with the highest priority that has arrived
         for (int i = 0; i < n; i++) {
@@ -17,7 +73,7 @@ void Scheduler::preemptivePriorityScheduling(){
                 if (arrivalTime[i] < arrivalTime[selectedProcess]) {
                     selectedProcess = i;
                 }
-            }
+            }   
         }
 
         if (selectedProcess == -1) {
@@ -26,7 +82,7 @@ void Scheduler::preemptivePriorityScheduling(){
         }
         // Record the start of the process in the Gantt chart
         if (ganttChart.empty() || ganttChart.back().first != selectedProcess) {
-            ganttChart.push_back(make_pair(selectedProcess, currentTime)); // Use make_pair
+            ganttChart.push_back(std::make_pair(selectedProcess, currentTime)); // Use std::make_pair
         }
 
         // Execute the process for one unit of time
@@ -44,12 +100,12 @@ void Scheduler::preemptivePriorityScheduling(){
     }
 
     // Merge adjacent entries in the Gantt chart for the same process
-    vector<pair<int, int> > mergedGantt; // Add space between >>
+    vector<pair<int, int> > mergedGantt;
     for (size_t i = 0; i < ganttChart.size(); i++) {
         if (mergedGantt.empty() || ganttChart[i].first != mergedGantt.back().first) {
             mergedGantt.push_back(ganttChart[i]);
         } else {
-            mergedGantt.back().second = currentTime; // Extend the duration of the process
+            mergedGantt.back().second = currentTime; // Extend duration
         }
     }
     ganttChart = mergedGantt;
@@ -163,10 +219,10 @@ int main() {
         priority[i] = prio;
     }
 
-    // Table table(PC, burst, arrival, priority);
-    Table tableAuto(5);
-    // table.printTable();
-    tableAuto.printTable();
+    Table table(PC, burst, arrival, priority);
+    table.printTable();
+    // Table tableAuto(5);
+    // tableAuto.printTable();
 
     while(true){
         int choice;
@@ -180,23 +236,26 @@ int main() {
         }
 
         if(choice == 1){
-            Scheduler scheduler(tableAuto);
+            Scheduler scheduler(table);
             scheduler.shortestJobNext();
         }
 
         if(choice == 2){
-            Scheduler scheduler(tableAuto);
+            Scheduler scheduler(table);
             scheduler.preemptivePriorityScheduling();
         }
         
         if(choice == 3){
-            Scheduler scheduler(tableAuto);
+            Scheduler scheduler(table);
             scheduler.nonPreemptivePriorityScheduling();
         }
 
-        if(choice == 4){
-            Scheduler scheduler(tableAuto);
-            scheduler.shortestJobNext();
+        if (choice == 4){
+            int timeQuantum;
+            cout << "Enter time quantum: " << endl;
+            cin >> timeQuantum;
+            Scheduler scheduler(table);
+            scheduler.roundRobinScheduling(timeQuantum);
         }
 
         while(true){
